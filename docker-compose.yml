@@ -1,0 +1,170 @@
+name: iot-bigdata-mcd512
+
+services:
+
+  # ---------- Capa de transferencia ----------
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -W 2 -q 1 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:3.7.1
+    container_name: kafka
+    ports:
+      - "29092:29092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_RETENTION_HOURS: 24
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # ---------- Capa de almacenamiento ----------
+  hdfs:
+    build: ./hadoop
+    container_name: hdfs
+    hostname: hdfs
+    ports:
+      - "9870:9870"   # UI del NameNode
+      - "8020:8020"   # RPC
+      - "9864:9864"   # UI del DataNode
+    volumes:
+      - hdfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "hdfs dfsadmin -report >/dev/null 2>&1 || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: intec2025mcd512
+      DOCKER_INFLUXDB_INIT_ORG: intec
+      DOCKER_INFLUXDB_INIT_BUCKET: planta
+      DOCKER_INFLUXDB_INIT_RETENTION: 30d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: token-mcd512-bigdata
+    volumes:
+      - influx_data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------- Capa de visualización ----------
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+  # ---------- Capa de dispositivos (edge) ----------
+  simulador:
+    build: ./simulador
+    container_name: simulador
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      INTERVALO_SEG: "2"
+      SEMILLA: "42"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  puente:
+    build: ./puente
+    container_name: puente
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC: planta/#
+      KAFKA_BOOTSTRAP: kafka:9092
+      KAFKA_TOPIC: planta.sensores
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- Capa de procesamiento ----------
+  spark:
+    build: ./spark
+    container_name: spark
+    ports:
+      - "4040:4040"   # Spark UI del job de streaming
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      KAFKA_TOPIC: planta.sensores
+      HDFS_URI: hdfs://hdfs:8020
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: token-mcd512-bigdata
+      INFLUX_ORG: intec
+      INFLUX_BUCKET: planta
+      RUTA_MODELO: /app/ml/modelo_anomalias.joblib
+    volumes:
+      - ./spark/app:/app
+      - ./ml:/app/ml
+    depends_on:
+      kafka:
+        condition: service_healthy
+      hdfs:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    command: >
+      spark-submit
+      --master local[2]
+      --conf spark.sql.shuffle.partitions=4
+      --conf spark.ui.port=4040
+      --conf spark.hadoop.dfs.client.use.datanode.hostname=true
+      /app/streaming_anomalias.py
+    restart: unless-stopped
+
+volumes:
+  hdfs_data:
+  influx_data:

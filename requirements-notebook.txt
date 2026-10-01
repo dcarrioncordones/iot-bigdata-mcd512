@@ -1,0 +1,10 @@
+pandas==2.2.2
+numpy==1.26.4
+matplotlib==3.9.0
+scikit-learn==1.5.0
+joblib==1.4.2
+pyarrow==16.1.0
+paho-mqtt==1.6.1
+influxdb-client==1.44.0
+jupyterlab==4.2.1
+nbformat==5.10.4

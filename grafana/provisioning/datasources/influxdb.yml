@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: InfluxDB-Planta
+    type: influxdb
+    access: proxy
+    uid: influx-planta
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: intec
+      defaultBucket: planta
+      httpMode: POST
+    secureJsonData:
+      token: token-mcd512-bigdata
+    isDefault: true
