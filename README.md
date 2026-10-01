@@ -59,36 +59,24 @@ docker compose exec hdfs hdfs dfs -du -h /datalake
 docker compose logs -f spark
 ```
 
-## 4. Capturas que hay que tomar
+## 4. Evidencia de ejecución
 
-El informe en Word y el notebook ya tienen el espacio reservado para ocho capturas. Guárdalas
-en `capturas/` con **exactamente** estos nombres (PNG):
+La carpeta `capturas/` contiene la evidencia de una corrida completa de ~27 minutos:
 
-| Archivo | Qué capturar |
+| Archivo | Contenido |
 |---|---|
-| `01.png` | Salida de `docker compose ps` con los ocho servicios *healthy* |
-| `02.png` | `docker compose logs -f simulador` publicando lecturas |
-| `03.png` | `kafka-console-consumer` mostrando los JSON del tópico |
-| `04.png` | http://localhost:9870 navegando `/datalake/crudo/telemetria` |
-| `05.png` | `docker compose logs -f spark` con el conteo de anomalías por batch |
-| `06.png` | http://localhost:4040 → pestaña *Structured Streaming* |
-| `07.png` | Tablero completo de Grafana con datos en vivo |
-| `08.png` | Detalle del panel de anomalías con MAQ-03 degradada |
+| `01.png` | Los ocho servicios desplegados con `docker compose ps` |
+| `02.png` | Simulador publicando lecturas por MQTT |
+| `03.png` | Mensajes JSON consumidos del tópico de Kafka |
+| `04.png` | Data lake en HDFS particionado por fecha y línea |
+| `05.png` | Micro-batches de Spark con anomalías detectadas |
+| `05b.png` | Arranque de Spark y carga del modelo entrenado |
+| `06.png` | Spark UI con las dos consultas de streaming |
+| `07.png` | Dashboard de Grafana con la degradación de MAQ-03 |
+| `08.png` | Paneles de detección: 551 de 595 anomalías en MAQ-03 |
 
-En macOS: `Cmd + Shift + 4` guarda PNG en el Escritorio; renómbralo y muévelo a `capturas/`.
-
-Después de colocarlas:
-
-```bash
-npm install docx           # una sola vez
-node scripts/generar_informe.js
-```
-
-El Word queda regenerado con las imágenes insertadas. Mientras falte alguna, el documento
-muestra un recuadro rojo señalando cuál es.
-
-El notebook toma las capturas automáticamente al abrirlo, porque las referencia por ruta
-relativa (`../capturas/NN.png`).
+El informe técnico está en `docs/` (Word) y en `notebooks/` (notebook ejecutado,
+con las capturas incrustadas).
 
 ## 5. Ejecutar el informe en Jupyter
 
