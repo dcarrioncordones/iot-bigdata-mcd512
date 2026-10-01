@@ -1,6 +1,6 @@
 # Capturas de evidencia
 
-Guardar aquí las ocho capturas en PNG con estos nombres exactos:
+Aquí están las ocho capturas en PNG con sus nombres exactos:
 
 | Archivo | Contenido |
 |---|---|
@@ -12,5 +12,3 @@ Guardar aquí las ocho capturas en PNG con estos nombres exactos:
 | 06.png | Spark UI (localhost:4040), pestaña Structured Streaming |
 | 07.png | Dashboard de Grafana con datos en vivo |
 | 08.png | Panel de anomalías con MAQ-03 degradada |
-
-Luego: `node scripts/generar_informe.js` para reinsertarlas en el Word.
